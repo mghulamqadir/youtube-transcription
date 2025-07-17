@@ -1,22 +1,28 @@
 import streamlit as st
-import requests
 import random
 import time
 import re
+import os
+from dotenv import load_dotenv
 from youtube_transcript_api import YouTubeTranscriptApi
+from youtube_transcript_api.proxies import WebshareProxyConfig
 
-from html_table import (
-    HTML_TABLE,
+# Load environment variables
+load_dotenv()
+
+PROXY_USERNAME = os.getenv("PROXY_USERNAME")
+PROXY_PASSWORD = os.getenv("PROXY_PASSWORD")
+
+if not PROXY_USERNAME or not PROXY_PASSWORD:
+    raise RuntimeError("Missing PROXY_USERNAME or PROXY_PASSWORD in .env file")
+
+# Setup proxy config for YouTubeTranscriptApi
+ytt_api = YouTubeTranscriptApi(
+    proxy_config=WebshareProxyConfig(
+        proxy_username=PROXY_USERNAME,
+        proxy_password=PROXY_PASSWORD,
+    )
 )
-
-PROXIES = HTML_TABLE
-
-if not PROXIES:
-    raise RuntimeError("No proxies found in HTML_TABLE!")
-
-
-def get_random_proxy():
-    return random.choice(PROXIES)
 
 
 def extract_video_id(url_or_id):
@@ -54,22 +60,12 @@ if st.button("📜 Fetch & Animate"):
         st.stop()
 
     with st.spinner("Fetching transcript…"):
-        original_get = requests.get
-
-        def proxy_get(*args, **kwargs):
-            kwargs["proxies"] = get_random_proxy()
-            return original_get(*args, **kwargs)
-
-        requests.get = proxy_get
-
         try:
-            transcript = YouTubeTranscriptApi.get_transcript(video_id)
+            transcript = ytt_api.get_transcript(video_id)
             full_text = " ".join([entry["text"] for entry in transcript])
         except Exception as e:
             st.error(f"❌ Failed to fetch transcript:\n{e}")
             st.stop()
-        finally:
-            requests.get = original_get
 
     st.success("✅ Transcript loaded! Animating now…")
 
